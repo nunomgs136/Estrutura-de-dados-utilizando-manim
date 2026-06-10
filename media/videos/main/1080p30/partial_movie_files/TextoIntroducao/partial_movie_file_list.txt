@@ -1,0 +1,10 @@
+# This file is used internally by FFMPEG.
+file 'file:C:/Users/Nuno/my-project/media/videos/main/1080p30/partial_movie_files/TextoIntroducao/4077315537_3328343130_223132457.mp4'
+file 'file:C:/Users/Nuno/my-project/media/videos/main/1080p30/partial_movie_files/TextoIntroducao/2561303421_4217992463_876454737.mp4'
+file 'file:C:/Users/Nuno/my-project/media/videos/main/1080p30/partial_movie_files/TextoIntroducao/2561303421_1056281501_2043985576.mp4'
+file 'file:C:/Users/Nuno/my-project/media/videos/main/1080p30/partial_movie_files/TextoIntroducao/2561303421_3453567311_3700511648.mp4'
+file 'file:C:/Users/Nuno/my-project/media/videos/main/1080p30/partial_movie_files/TextoIntroducao/2561303421_1797655766_2828891989.mp4'
+file 'file:C:/Users/Nuno/my-project/media/videos/main/1080p30/partial_movie_files/TextoIntroducao/2561303421_776206071_3045246802.mp4'
+file 'file:C:/Users/Nuno/my-project/media/videos/main/1080p30/partial_movie_files/TextoIntroducao/2561303421_3013822615_2159863684.mp4'
+file 'file:C:/Users/Nuno/my-project/media/videos/main/1080p30/partial_movie_files/TextoIntroducao/2561303421_4266733314_1493616949.mp4'
+file 'file:C:/Users/Nuno/my-project/media/videos/main/1080p30/partial_movie_files/TextoIntroducao/2561303421_2552855209_3278671325.mp4'

@@ -1,0 +1,7 @@
+# This file is used internally by FFMPEG.
+file 'file:C:/Users/Nuno/my-project/media/videos/main/2160p60/partial_movie_files/TesteSecoes/419378090_3120274435_223132457.mp4'
+file 'file:C:/Users/Nuno/my-project/media/videos/main/2160p60/partial_movie_files/TesteSecoes/651787454_4217992463_110645759.mp4'
+file 'file:C:/Users/Nuno/my-project/media/videos/main/2160p60/partial_movie_files/TesteSecoes/651787454_2844360058_735050413.mp4'
+file 'file:C:/Users/Nuno/my-project/media/videos/main/2160p60/partial_movie_files/TesteSecoes/651787454_170044483_709624146.mp4'
+file 'file:C:/Users/Nuno/my-project/media/videos/main/2160p60/partial_movie_files/TesteSecoes/651787454_2755612354_709624146.mp4'
+file 'file:C:/Users/Nuno/my-project/media/videos/main/2160p60/partial_movie_files/TesteSecoes/651787454_118436595_709624146.mp4'

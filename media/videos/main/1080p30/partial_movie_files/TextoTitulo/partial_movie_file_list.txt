@@ -1,0 +1,6 @@
+# This file is used internally by FFMPEG.
+file 'file:C:/Users/Nuno/my-project/media/videos/main/1080p30/partial_movie_files/TextoTitulo/4077315537_2971692471_223132457.mp4'
+file 'file:C:/Users/Nuno/my-project/media/videos/main/1080p30/partial_movie_files/TextoTitulo/2561303421_3416675358_842443084.mp4'
+file 'file:C:/Users/Nuno/my-project/media/videos/main/1080p30/partial_movie_files/TextoTitulo/2561303421_1038707267_877299729.mp4'
+file 'file:C:/Users/Nuno/my-project/media/videos/main/1080p30/partial_movie_files/TextoTitulo/2561303421_390195648_2964017607.mp4'
+file 'file:C:/Users/Nuno/my-project/media/videos/main/1080p30/partial_movie_files/TextoTitulo/2561303421_264070862_1509455987.mp4'
