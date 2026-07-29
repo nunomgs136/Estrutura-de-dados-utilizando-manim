@@ -93,37 +93,75 @@ class HelloWorld(Scene):
         self.play(FadeIn(text))
 
 class TentarArvore(Scene):
-	def construct(self):
-		a = Circle()
-		b = Circle()
-		c = Circle()
-		testeTexto = Text("22", weight = BOLD, font_size = 15)
-		teste2 = Text("21", weight = BOLD, font_size = 15)
-		teste3 = Text("23", weight = BOLD, font_size = 15)
-		testeTexto.move_to(a.get_center())
+    def construct(self):
+        # --- Configurações fixas (evita cálculos redundantes de scale) ---
+        raio_no = 0.4
+        cor_no = WHITE
+        cor_aresta = GOLD
 
-		a.scale_to_fit_height(config.frame_height)
-		b.scale_to_fit_height(config.frame_height)
-		c.scale_to_fit_height(config.frame_height)
-		a.scale_to_fit_width(config.frame_width)
-		b.scale_to_fit_width(config.frame_width)
-		c.scale_to_fit_width(config.frame_width)
-		a.scale(0.08)
-		b.scale(0.08)
-		c.scale(0.08)
-		b.next_to(a, DOWN, buff = 0.5)
-		c.next_to(a,DOWN, buff = 0.5)
-		b.shift(LEFT * 2)
-		c.shift(RIGHT * 2)
-		teste2.move_to(b.get_center())
-		teste3.move_to(c.get_center())
-		#self.play(FadeIn(a))
-		#self.play(FadeIn(b))
-		seta = Arrow(start=a.get_center(), end=b.get_center(), stroke_width=6, color=GOLD, max_tip_length_to_length_ratio = 0)
-		seta2 = Arrow(start=a.get_center(), end=c.get_center(), stroke_width=6, color=GOLD, max_tip_length_to_length_ratio = 0)
-		self.play(FadeIn(seta,seta2,a,b,c,testeTexto,teste2,teste3))
-		grupo = VGroup(a,b,c,seta,seta2,testeTexto,teste2,teste3)
-		self.play(grupo.animate.shift(LEFT * 2), grupo.animate.scale(0.5))
+        def criar_no(rotulo, posicao):
+            """Cria um círculo com o número centralizado dentro."""
+            circulo = Circle(radius=raio_no, color=cor_no)
+            texto = Text(rotulo, weight=BOLD, font_size=28)
+            texto.move_to(circulo.get_center())
+            circulo.move_to(posicao)
+            texto.move_to(posicao)
+            return VGroup(circulo, texto)
+
+        def criar_aresta(no_origem, no_destino):
+            """Cria uma linha entre as bordas de dois nós (não do centro)."""
+            return Line(
+                no_origem[0].get_center(),
+                no_destino[0].get_center(),
+                stroke_width=4,
+                color=cor_aresta,
+                z_index=-1,  # fica atrás dos círculos
+            ).set_length(
+                Line(no_origem[0].get_center(), no_destino[0].get_center()).get_length()
+                - 2 * raio_no
+            )
+
+        # --- Posicionamento (espelha a imagem) ---
+        pos_30 = UP * 2
+        pos_15 = pos_30 + DOWN * 1.5 + LEFT * 2.5
+        pos_45 = pos_30 + DOWN * 1.5 + RIGHT * 2.5
+        pos_7  = pos_15 + DOWN * 1.5 + LEFT * 1.5
+        pos_22 = pos_15 + DOWN * 1.5 + RIGHT * 1.5
+
+        # --- Criação dos nós ---
+        no_30 = criar_no("30", pos_30)
+        no_15 = criar_no("15", pos_15)
+        no_45 = criar_no("45", pos_45)
+        no_7  = criar_no("7", pos_7)
+        no_22 = criar_no("22", pos_22)
+
+        # --- Criação das arestas ---
+        aresta_30_15 = criar_aresta(no_30, no_15)
+        aresta_30_45 = criar_aresta(no_30, no_45)
+        aresta_15_7  = criar_aresta(no_15, no_7)
+        aresta_15_22 = criar_aresta(no_15, no_22)
+
+        arvore = VGroup(
+            aresta_30_15, aresta_30_45, aresta_15_7, aresta_15_22,
+            no_30, no_15, no_45, no_7, no_22,
+        )
+
+        # --- Animação ---
+        self.play(
+            LaggedStart(
+                FadeIn(no_30),
+                Create(VGroup(aresta_30_15, aresta_30_45)),
+                FadeIn(no_15, no_45),
+                Create(VGroup(aresta_15_7, aresta_15_22)),
+                FadeIn(no_7, no_22),
+                lag_ratio=0.4,
+            )
+        )
+        self.wait()
+
+        # Reposiciona a árvore inteira, se precisar (ex: para mostrar código ao lado)
+        self.play(arvore.animate.shift(LEFT * 2).scale(0.7))
+        self.wait()
 
 class TextoFormulaFB(Scene):
 	def construct(self):
@@ -221,3 +259,89 @@ class CirurgiaSiamesa(Scene):
 		texto3.to_edge(DOWN)
 		self.play(Write(texto3))
 		self.play(FadeOut(titulo,texto,texto2,texto3), scale=0.5)
+
+class ListaDuplamenteLigada(Scene):
+    def construct(self):
+        # --- Configurações fixas ---
+        lado_no = 0.8
+        espaco_horizontal = 4.6
+        cor_no = WHITE
+        cor_seta = GOLD
+
+        def criar_no(rotulo, posicao):
+            """Cria um quadrado com o valor centralizado dentro."""
+            retangulo = Rectangle(grid_ystep = 3.0, grid_xstep = 1.30)
+            ''' line1 = Line(
+            start=retangulo.get_center() + LEFT * 0.85 + DOWN,
+            end=retangulo.get_center() + LEFT * 0.85 + UP
+        	)
+            line2 = Line(
+            start=retangulo.get_center() + RIGHT * 0.85 + DOWN,
+            end=retangulo.get_center() + RIGHT * 0.85 + UP
+        	) '''
+            texto = Text(rotulo, weight=BOLD, font_size=28)
+            retangulo.move_to(posicao)
+            texto.move_to(posicao)
+            return VGroup(retangulo, texto)
+
+        def criar_seta_dupla(no_origem, no_destino):
+            """Cria uma seta bidirecional entre as bordas de dois nós."""
+            return DoubleArrow(
+                no_origem[0].get_right(),
+                no_destino[0].get_left(),
+                stroke_width=4,
+                color=cor_seta,
+                buff=0.05,
+                tip_length=0.15,
+            )
+
+        # --- Valores da lista (baseado na imagem) ---
+        valores = [ "2", "3", "4"]
+        n = len(valores)
+
+        # --- Posicionamento em linha, centralizado ---
+        largura_total = (n - 1) * espaco_horizontal
+        posicoes = [
+            LEFT * (largura_total / 2) + RIGHT * i * espaco_horizontal
+            for i in range(n)
+        ]
+
+        # --- Criação dos nós ---
+        nos = [criar_no(valores[i], posicoes[i]) for i in range(n)]
+
+        # --- Criação das setas entre nós consecutivos ---
+        setas = [criar_seta_dupla(nos[i], nos[i + 1]) for i in range(n - 1)]
+
+        lista = VGroup(*nos, *setas)
+
+        # --- Animação ---
+        self.play(FadeIn(nos[0]))
+        for i in range(n - 1):
+            self.play(
+                Create(setas[i]),
+                FadeIn(nos[i + 1]),
+            )
+        self.wait()
+
+        # Reposiciona a lista inteira, se precisar
+        self.play(lista.animate.scale(0.8).shift(UP * 1.5))
+        self.wait()
+
+class VerticalLineInSquare(Scene):
+    def construct(self):
+        # Create a square with a side length of 4 units
+        sq = Rectangle()
+        
+        # Create a vertical line matching the height of the square
+        # top edge is UP * 2, bottom edge is DOWN * 2
+
+        texto = Text("5", weight=BOLD, font_size=40)
+        texto.move_to(sq.get_center())
+
+
+        # Group them together so they act as one object
+        grouped_shape = VGroup(sq, line1,line2,texto)
+        
+        # Animate drawing the group on the screen
+        self.play(Create(grouped_shape))
+        self.wait(1)
