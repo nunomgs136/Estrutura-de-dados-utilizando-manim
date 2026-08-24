@@ -1,3 +1,5 @@
+from tkinter import LEFT, Text
+
 from manim import *
 class CreateCircle(Scene):
 	def construct(self):
@@ -91,7 +93,16 @@ class HelloWorld(Scene):
         text = Text("A árvore AVL é uma árvore na qual todos os seus vértices estão balanceados", color=BLUE , font_size=12, font="Cursive")
         self.add(text)
         self.play(FadeIn(text))
-
+class TextoExercicio(Scene):
+    def construct(self):
+        titulo = Text("Exemplo", weight = BOLD, font_size = 50)
+        titulo.to_edge(UP)
+        self.play(Write(titulo))
+        texto = Text("Considere a inserção do elemento 20 e a posterior realização das operações de balanceamento (caso sejam necessárias). \n Após essas etapas, ao realizar o percurso na árvore em in-ordem, qual será a sequência de visita dos nós\?", font_size = 20)
+        texto.next_to(titulo, DOWN)
+        self.play(Write(texto))
+        self.wait(10)
+        self.play(FadeOut(titulo,texto))
 class TentarArvore(Scene):
     def construct(self):
         # --- Configurações fixas (evita cálculos redundantes de scale) ---
@@ -127,6 +138,7 @@ class TentarArvore(Scene):
         pos_45 = pos_30 + DOWN * 1.5 + RIGHT * 2.5
         pos_7  = pos_15 + DOWN * 1.5 + LEFT * 1.5
         pos_22 = pos_15 + DOWN * 1.5 + RIGHT * 1.5
+        pos_20 = pos_22 + DOWN * 1.5 + LEFT * 1.5
 
         # --- Criação dos nós ---
         no_30 = criar_no("30", pos_30)
@@ -134,16 +146,17 @@ class TentarArvore(Scene):
         no_45 = criar_no("45", pos_45)
         no_7  = criar_no("7", pos_7)
         no_22 = criar_no("22", pos_22)
+        no_20 = criar_no("20", pos_20)
 
         # --- Criação das arestas ---
         aresta_30_15 = criar_aresta(no_30, no_15)
         aresta_30_45 = criar_aresta(no_30, no_45)
         aresta_15_7  = criar_aresta(no_15, no_7)
         aresta_15_22 = criar_aresta(no_15, no_22)
-
+        aresta_22_20 = criar_aresta(no_22, no_20)
         arvore = VGroup(
-            aresta_30_15, aresta_30_45, aresta_15_7, aresta_15_22,
-            no_30, no_15, no_45, no_7, no_22,
+            aresta_30_15, aresta_30_45, aresta_15_7, aresta_15_22, aresta_22_20,
+            no_30, no_15, no_45, no_7, no_22, no_20,
         )
 
         # --- Animação ---
@@ -154,13 +167,15 @@ class TentarArvore(Scene):
                 FadeIn(no_15, no_45),
                 Create(VGroup(aresta_15_7, aresta_15_22)),
                 FadeIn(no_7, no_22),
+				Create(aresta_22_20),
+				FadeIn(no_20),
                 lag_ratio=0.4,
             )
         )
         self.wait()
 
         # Reposiciona a árvore inteira, se precisar (ex: para mostrar código ao lado)
-        self.play(arvore.animate.shift(LEFT * 2).scale(0.7))
+        #self.play(arvore.animate.shift(LEFT * 2).scale(0.7))
         self.wait()
 
 class TextoFormulaFB(Scene):
@@ -284,17 +299,33 @@ class ListaDuplamenteLigada(Scene):
             texto.move_to(posicao)
             return VGroup(retangulo, texto)
 
-        def criar_seta_dupla(no_origem, no_destino):
-            """Cria uma seta bidirecional entre as bordas de dois nós."""
-            return DoubleArrow(
-                no_origem[0].get_right(),
-                no_destino[0].get_left(),
+        def criar_seta(no_origem, no_destino):
+
+            seta1 = Arrow(
+                start=no_origem[0].get_right(),
+                end=no_destino[0].get_left(),
                 stroke_width=4,
                 color=cor_seta,
                 buff=0.05,
-                tip_length=0.15,
             )
-
+            seta2 = Arrow(
+                start=no_destino[0].get_left(),
+                end=no_origem[0].get_right(),
+                stroke_width=4,
+                color=cor_seta,
+                buff=0.05,
+            )
+            seta2.shift(DOWN * 0.2)  # Ajusta a posição da seta de volta
+            return VGroup(seta1, seta2)
+        def remover_seta(seta):
+            self.play(FadeOut(seta))
+            self.wait()
+        def remover_no(no):
+            self.play(FadeOut(no))
+            self.wait()
+        def reposicionar_lista(lista, nova_posicao):
+            self.play(lista.animate.move_to(nova_posicao))
+            self.wait()
         # --- Valores da lista (baseado na imagem) ---
         valores = [ "2", "3", "4"]
         n = len(valores)
@@ -310,8 +341,7 @@ class ListaDuplamenteLigada(Scene):
         nos = [criar_no(valores[i], posicoes[i]) for i in range(n)]
 
         # --- Criação das setas entre nós consecutivos ---
-        setas = [criar_seta_dupla(nos[i], nos[i + 1]) for i in range(n - 1)]
-
+        setas = [criar_seta(nos[i], nos[i + 1]) for i in range(n - 1)]
         lista = VGroup(*nos, *setas)
 
         # --- Animação ---
@@ -322,9 +352,13 @@ class ListaDuplamenteLigada(Scene):
                 FadeIn(nos[i + 1]),
             )
         self.wait()
-
+        remover_no(nos[1])
+        remover_seta(setas[1])
+        reposicionar_lista(lista, ORIGIN)
+        # teste_remover_setas = [remover_seta(setas[i]) for i in range(n - 1)]
+        # teste_remover_nos = [remover_no(nos[i]) for i in range(n)]
         # Reposiciona a lista inteira, se precisar
-        self.play(lista.animate.scale(0.8).shift(UP * 1.5))
+        #self.play(lista.animate.scale(0.8).shift(UP * 1.5))
         self.wait()
 
 class VerticalLineInSquare(Scene):

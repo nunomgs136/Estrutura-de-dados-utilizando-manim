@@ -4,3 +4,6 @@
 *.txt
 *.png
 *.pyc
+*.aux
+*.dvi
+*.log
