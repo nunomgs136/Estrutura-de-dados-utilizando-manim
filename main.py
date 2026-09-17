@@ -275,6 +275,8 @@ class CirurgiaSiamesa(Scene):
 		self.play(Write(texto3))
 		self.play(FadeOut(titulo,texto,texto2,texto3), scale=0.5)
 
+from manim import *
+
 class ListaDuplamenteLigada(Scene):
     def construct(self):
         # --- Configurações fixas ---
@@ -282,18 +284,16 @@ class ListaDuplamenteLigada(Scene):
         espaco_horizontal = 4.6
         cor_no = WHITE
         cor_seta = GOLD
-
+        n = 4  # Número de nós na lista
         def criar_no(rotulo, posicao):
             """Cria um quadrado com o valor centralizado dentro."""
-            retangulo = Rectangle(grid_ystep = 3.0, grid_xstep = 1.30)
-            ''' line1 = Line(
-            start=retangulo.get_center() + LEFT * 0.85 + DOWN,
-            end=retangulo.get_center() + LEFT * 0.85 + UP
-        	)
-            line2 = Line(
-            start=retangulo.get_center() + RIGHT * 0.85 + DOWN,
-            end=retangulo.get_center() + RIGHT * 0.85 + UP
-        	) '''
+            retangulo = Rectangle(
+            width=4,
+            height=2,
+            grid_ystep=3.0,
+            grid_xstep=1.30,
+            color=cor_no,
+            )
             texto = Text(rotulo, weight=BOLD, font_size=28)
             retangulo.move_to(posicao)
             texto.move_to(posicao)
@@ -320,16 +320,101 @@ class ListaDuplamenteLigada(Scene):
         def remover_seta(seta):
             self.play(FadeOut(seta))
             self.wait()
-        def remover_no(no):
+        def remover_no(no,lista):
             self.play(FadeOut(no))
+            lista.remove(no)
             self.wait()
         def reposicionar_lista(lista, nova_posicao):
             self.play(lista.animate.move_to(nova_posicao))
             self.wait()
-        # --- Valores da lista (baseado na imagem) ---
-        valores = [ "2", "3", "4"]
-        n = len(valores)
+        def remocao_completa(lista, nos, setas, indice):
+            if not 0 <= indice < len(nos):
+                raise IndexError("Índice de nó inválido")
 
+            no_removido = nos[indice]
+
+            # setas[i] liga nos[i] a nos[i + 1].
+            afetadas = [
+                seta
+                for i, seta in enumerate(setas)
+                if i in (indice - 1, indice)
+            ]
+
+            preservadas = [
+                (seta, nos[i])
+                for i, seta in enumerate(setas)
+                if i not in (indice - 1, indice)
+            ]
+
+            # Se há vizinhos dos dois lados, prepara a nova ligação.
+            # A cópia preserva o tamanho e o estilo das setas já escaladas.
+            nova_seta = None
+
+            if 0 < indice < len(nos) - 1:
+                nova_seta = setas[indice - 1].copy()
+                vizinho_esquerdo = nos[indice - 1]
+                posicao_anterior = vizinho_esquerdo.get_center().copy()
+
+            self.play(
+                FadeOut(no_removido),
+                *[FadeOut(seta) for seta in afetadas],
+            )
+
+            lista.remove(no_removido, *afetadas)
+            nos.pop(indice)
+            setas[:] = [seta for seta, _ in preservadas]
+
+            if not nos:
+                return
+
+            largura_total = (len(nos) - 1) * espaco_horizontal
+
+            destinos = [
+                RIGHT * (i * espaco_horizontal - largura_total / 2)
+                for i in range(len(nos))
+            ]
+
+            # Calcula os deslocamentos antes de começar a animação.
+            deslocamentos = {
+                id(no): destino - no.get_center()
+                for no, destino in zip(nos, destinos)
+            }
+
+            self.play(
+                *[
+                    no.animate.move_to(destino)
+                    for no, destino in zip(nos, destinos)
+                ],
+                *[
+                    seta.animate.shift(deslocamentos[id(origem)])
+                    for seta, origem in preservadas
+                ],
+            )
+
+            if nova_seta is not None:
+                nova_seta.shift(
+                    vizinho_esquerdo.get_center() - posicao_anterior
+                )
+
+                # Mantém a ordem das ligações na lista Python.
+                setas.insert(indice - 1, nova_seta)
+                lista.add(nova_seta)
+
+                self.play(Create(nova_seta))
+
+            self.wait()
+        def ajustar_setas(nos, setas):
+            for i in range(len(setas)):
+                seta1, seta2 = setas[i]
+                seta1.put_start_and_end_on(
+                    nos[i][0].get_right(), nos[i + 1][0].get_left()
+                )
+                seta2.put_start_and_end_on(
+                    nos[i + 1][0].get_left(), nos[i][0].get_right()
+                )
+                seta2.shift(DOWN * 0.2)
+            self.wait()
+        n = 4  # Número de nós na lista
         # --- Posicionamento em linha, centralizado ---
         largura_total = (n - 1) * espaco_horizontal
         posicoes = [
@@ -338,27 +423,42 @@ class ListaDuplamenteLigada(Scene):
         ]
 
         # --- Criação dos nós ---
-        nos = [criar_no(valores[i], posicoes[i]) for i in range(n)]
+        nos = [criar_no(str(i), posicoes[i]) for i in range(n)]
 
         # --- Criação das setas entre nós consecutivos ---
-        setas = [criar_seta(nos[i], nos[i + 1]) for i in range(n - 1)]
+        setas = [criar_seta(nos[i], nos[i + 1]) for i in range(3)]
         lista = VGroup(*nos, *setas)
+        # Margem em cada lado da cena, em unidades do Manim.
+        margem = 0.5
+
+        largura_disponivel = config.frame_width - 2 * margem
+        altura_disponivel = config.frame_height - 2 * margem
+
+        # Reduz apenas quando necessário, preservando as proporções.
+        fator = min(
+            1.0,
+            largura_disponivel / lista.width,
+            altura_disponivel / lista.height,
+        )
+
+        lista.scale(fator)
+        lista.move_to(ORIGIN)
+
+        # Mantém o reposicionamento após a remoção compatível
+        # com o tamanho que acabamos de aplicar.
+        espaco_horizontal *= fator
 
         # --- Animação ---
         self.play(FadeIn(nos[0]))
-        for i in range(n - 1):
+        for i in range(n-1):
             self.play(
                 Create(setas[i]),
                 FadeIn(nos[i + 1]),
             )
         self.wait()
-        remover_no(nos[1])
-        remover_seta(setas[1])
-        reposicionar_lista(lista, ORIGIN)
-        # teste_remover_setas = [remover_seta(setas[i]) for i in range(n - 1)]
-        # teste_remover_nos = [remover_no(nos[i]) for i in range(n)]
-        # Reposiciona a lista inteira, se precisar
-        #self.play(lista.animate.scale(0.8).shift(UP * 1.5))
+        
+        remocao_completa(lista, nos, setas, 1)
+        #ajustar_setas(nos, setas)
         self.wait()
 
 class VerticalLineInSquare(Scene):
@@ -379,3 +479,81 @@ class VerticalLineInSquare(Scene):
         # Animate drawing the group on the screen
         self.play(Create(grouped_shape))
         self.wait(1)
+class TextoTituloListas(Scene):
+	def construct(self):
+		titulo = Text("Listas Duplamente Ligadas", weight = ULTRAHEAVY, font_size = 50)
+		cursor = Rectangle(
+            color = GREY_A,
+            fill_color = GREY_A,
+            fill_opacity = 1.0,
+            height = 1.1,
+            width = 0.5,
+        ).move_to(titulo[0])
+		self.play(TypeWithCursor(titulo, cursor))
+		self.play(Blink(cursor, blinks=5))
+		self.wait(5)
+		self.play(Blink(cursor, blinks=2))
+		self.play(FadeOut(titulo))
+		self.remove(cursor)
+class TextoExplicacaoListas(Scene):
+    def construct(self):
+        titulo = Text("O que é uma lista duplamente ligada?", font_size = 50, weight = BOLD)
+        titulo.to_edge(UP)
+        self.play(Write(titulo))
+        texto = Text("Uma lista duplamente ligada é uma estrutura de dados linear na qual cada elemento (ou nó) \n contém referências para o próximo e o anterior elemento da lista.",font_size = 20)
+        self.play(Write(texto))
+        texto2 = MarkupText(f'* Cada nó possui um ponteiro para o próximo nó \n * Cada nó possui um ponteiro para o nó anterior \n * Permite percorrer a lista em ambas as direções', font_size = 20)
+        texto2.next_to(texto, DOWN)
+        self.play(Write(texto2))
+        self.wait(10)
+        self.play(FadeOut(titulo,texto,texto2))
+class RepresentacaoListas(Scene):
+    def construct(self):
+        def criar_no(rotulo, posicao):
+            """Cria um quadrado com o valor centralizado dentro."""
+            retangulo = Rectangle(grid_ystep = 2.8, grid_xstep = 2.0)
+            ''' line1 = Line(
+            start=retangulo.get_center() + LEFT * 0.85 + DOWN,
+            end=retangulo.get_center() + LEFT * 0.85 + UP
+        	)
+            line2 = Line(
+            start=retangulo.get_center() + RIGHT * 0.85 + DOWN,
+            end=retangulo.get_center() + RIGHT * 0.85 + UP
+        	) '''
+            texto = Text(rotulo, weight=BOLD, font_size=28)
+            retangulo.move_to(posicao)
+            texto.move_to(posicao)
+            texto.move_to(RIGHT + posicao)
+            texto2 = Text("/", weight=BOLD, font_size=28)
+            texto2.move_to(LEFT + posicao)
+            return VGroup(retangulo, texto, texto2)
+        titulo = Text("Representação de uma lista duplamente ligada", font_size = 40, weight = BOLD)
+        titulo.to_edge(UP)
+        self.play(Write(titulo))
+        no = criar_no("5", LEFT)
+        self.play(FadeIn(no))
+		#indicadores de cada quadrado
+        seta1 = Arrow(
+                start=no[0].get_top() + UP + LEFT,
+                end=no[0].get_top() + DOWN * 0.5 + LEFT,
+                stroke_width=2,
+                color=GOLD,
+                buff=0.05,
+            )
+        seta2 = Arrow(
+                start=no[0].get_top() + RIGHT + UP,
+                end=no[0].get_top() + DOWN * 0.5 + RIGHT,
+                stroke_width=2,
+                color=GOLD,
+                buff=0.05,
+            )
+        texto1 = Text("Primeiro", weight=BOLD, font_size=20)
+        texto1.move_to(seta1.get_top() + LEFT * 0.5 + UP * 0.2)
+        texto2 = Text("Quantidade", weight=BOLD, font_size=20)  
+        texto2.move_to(seta2.get_top() + RIGHT * 0.5 + UP * 0.2)
+        geral = VGroup(no,seta1,seta2,texto1,texto2)
+        self.play(Create(geral))
+        #texto = Text("A representação de uma lista duplamente ligada pode ser visualizada como uma sequência de nós conectados por ponteiros.",font_size = 20)
+        #self.play(Write(texto))
+        self.wait(10)
+        self.play(FadeOut(titulo,no))
