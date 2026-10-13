@@ -103,80 +103,306 @@ class TextoExercicio(Scene):
         self.play(Write(texto))
         self.wait(10)
         self.play(FadeOut(titulo,texto))
+
 class TentarArvore(Scene):
     def construct(self):
-        # --- Configurações fixas (evita cálculos redundantes de scale) ---
         raio_no = 0.4
         cor_no = WHITE
         cor_aresta = GOLD
 
-        def criar_no(rotulo, posicao):
-            """Cria um círculo com o número centralizado dentro."""
-            circulo = Circle(radius=raio_no, color=cor_no)
-            texto = Text(rotulo, weight=BOLD, font_size=28)
-            texto.move_to(circulo.get_center())
-            circulo.move_to(posicao)
-            texto.move_to(posicao)
-            return VGroup(circulo, texto)
+        # Estrutura lógica: valor -> [filho esquerdo, filho direito].
+        # None representa um filho inexistente.
+        filhos = {
+            30: [15, 45],
+            15: [7, 22],
+            45: [None, None],
+            7:  [None, None],
+            22: [20, None],
+            20: [None, None],
+        }
 
-        def criar_aresta(no_origem, no_destino):
-            """Cria uma linha entre as bordas de dois nós (não do centro)."""
+        raiz = 30
+
+        # ---------- Operações na estrutura ----------
+
+        def altura(valor):
+            if valor is None:
+                return 0
+
+            esquerdo, direito = filhos[valor]
+            return 1 + max(altura(esquerdo), altura(direito))
+
+        def fator_balanceamento(valor):
+            esquerdo, direito = filhos[valor]
+            return altura(esquerdo) - altura(direito)
+
+        def rotacionar_esquerda(x):
+            y = filhos[x][1]
+
+            if y is None:
+                raise ValueError("A rotação exige um filho direito.")
+
+            beta = filhos[y][0]
+
+            # Transfere a subárvore intermediária.
+            filhos[x][1] = beta
+
+            # x passa a ser filho esquerdo de y.
+            filhos[y][0] = x
+
+            # Nova raiz da subárvore.
+            return y
+
+        def rotacionar_direita(y):
+            x = filhos[y][0]
+
+            if x is None:
+                raise ValueError("A rotação exige um filho esquerdo.")
+
+            beta = filhos[x][1]
+
+            # Transfere a subárvore intermediária.
+            filhos[y][0] = beta
+
+            # y passa a ser filho direito de x.
+            filhos[x][1] = y
+
+            # Nova raiz da subárvore.
+            return x
+
+        # ---------- Objetos visuais ----------
+
+        def criar_no(valor, posicao):
+            circulo = Circle(
+                radius=raio_no,
+                color=cor_no,
+                fill_color=BLACK,
+                fill_opacity=1,
+            )
+
+            texto = Text(
+                str(valor),
+                weight=BOLD,
+                font_size=28,
+            )
+
+            return VGroup(circulo, texto).move_to(posicao)
+
+        def criar_aresta(pai, filho):
             return Line(
-                no_origem[0].get_center(),
-                no_destino[0].get_center(),
+                nos[pai][0].get_center(),
+                nos[filho][0].get_center(),
+                buff=raio_no,
                 stroke_width=4,
                 color=cor_aresta,
-                z_index=-1,  # fica atrás dos círculos
-            ).set_length(
-                Line(no_origem[0].get_center(), no_destino[0].get_center()).get_length()
-                - 2 * raio_no
-            )
+            ).set_z_index(-1)
 
-        # --- Posicionamento (espelha a imagem) ---
-        pos_30 = UP * 2
-        pos_15 = pos_30 + DOWN * 1.5 + LEFT * 2.5
-        pos_45 = pos_30 + DOWN * 1.5 + RIGHT * 2.5
-        pos_7  = pos_15 + DOWN * 1.5 + LEFT * 1.5
-        pos_22 = pos_15 + DOWN * 1.5 + RIGHT * 1.5
-        pos_20 = pos_22 + DOWN * 1.5 + LEFT * 1.5
+        def calcular_posicoes(raiz_atual):
+            posicoes = {}
 
-        # --- Criação dos nós ---
-        no_30 = criar_no("30", pos_30)
-        no_15 = criar_no("15", pos_15)
-        no_45 = criar_no("45", pos_45)
-        no_7  = criar_no("7", pos_7)
-        no_22 = criar_no("22", pos_22)
-        no_20 = criar_no("20", pos_20)
+            def visitar(valor, x, y, distancia):
+                if valor is None:
+                    return
 
-        # --- Criação das arestas ---
-        aresta_30_15 = criar_aresta(no_30, no_15)
-        aresta_30_45 = criar_aresta(no_30, no_45)
-        aresta_15_7  = criar_aresta(no_15, no_7)
-        aresta_15_22 = criar_aresta(no_15, no_22)
-        aresta_22_20 = criar_aresta(no_22, no_20)
-        arvore = VGroup(
-            aresta_30_15, aresta_30_45, aresta_15_7, aresta_15_22, aresta_22_20,
-            no_30, no_15, no_45, no_7, no_22, no_20,
+                posicoes[valor] = RIGHT * x + UP * y
+                esquerdo, direito = filhos[valor]
+
+                visitar(
+                    esquerdo,
+                    x - distancia,
+                    y - 1.15,
+                    distancia / 2,
+                )
+                visitar(
+                    direito,
+                    x + distancia,
+                    y - 1.15,
+                    distancia / 2,
+                )
+
+            visitar(raiz_atual, 0, 1.7, 2.8)
+            return posicoes
+
+        def obter_pais(raiz_atual):
+            # Cada nó, exceto a raiz, tem uma aresta de entrada.
+            pais = {}
+
+            def visitar(valor):
+                if valor is None:
+                    return
+
+                for filho in filhos[valor]:
+                    if filho is not None:
+                        pais[filho] = valor
+                        visitar(filho)
+
+            visitar(raiz_atual)
+            return pais
+
+        def criar_texto(texto, direcao):
+            objeto = Text(texto, font_size=23)
+
+            if objeto.width > config.frame_width - 1:
+                objeto.scale_to_fit_width(config.frame_width - 1)
+
+            return objeto.to_edge(direcao, buff=0.35)
+
+        posicoes = calcular_posicoes(raiz)
+
+        nos = {
+            valor: criar_no(valor, posicoes[valor])
+            for valor in filhos
+        }
+
+        pais = obter_pais(raiz)
+
+        # As arestas são identificadas pelo filho de destino.
+        arestas = {
+            filho: criar_aresta(pai, filho)
+            for filho, pai in pais.items()
+        }
+
+        titulo = criar_texto(
+            "Caso LR: FB(30) = 2 e FB(15) = -1",
+            UP,
+        )
+        legenda = criar_texto(
+            "FB = altura(esquerda) - altura(direita)",
+            DOWN,
         )
 
-        # --- Animação ---
+        self.play(FadeIn(titulo), FadeIn(legenda))
+
         self.play(
             LaggedStart(
-                FadeIn(no_30),
-                Create(VGroup(aresta_30_15, aresta_30_45)),
-                FadeIn(no_15, no_45),
-                Create(VGroup(aresta_15_7, aresta_15_22)),
-                FadeIn(no_7, no_22),
-				Create(aresta_22_20),
-				FadeIn(no_20),
-                lag_ratio=0.4,
+                *[FadeIn(no) for no in nos.values()],
+                lag_ratio=0.15,
             )
         )
-        self.wait()
+        self.play(*[Create(aresta) for aresta in arestas.values()])
+        self.wait(2)
 
-        # Reposiciona a árvore inteira, se precisar (ex: para mostrar código ao lado)
-        #self.play(arvore.animate.shift(LEFT * 2).scale(0.7))
-        self.wait()
+        # ---------- Atualização da animação ----------
+
+        def atualizar_desenho(raiz_atual):
+            novos_pais = obter_pais(raiz_atual)
+            animacoes = []
+
+            # Uma nova raiz perde sua aresta de entrada.
+            for filho in list(arestas):
+                if filho not in novos_pais:
+                    animacoes.append(FadeOut(arestas.pop(filho)))
+
+            # Redireciona as arestas cujo pai mudou.
+            # As demais continuam visíveis.
+            for filho, pai in novos_pais.items():
+                if filho in arestas:
+                    if pais.get(filho) != pai:
+                        animacoes.append(
+                            Transform(
+                                arestas[filho],
+                                criar_aresta(pai, filho),
+                            )
+                        )
+                else:
+                    arestas[filho] = criar_aresta(pai, filho)
+                    animacoes.append(Create(arestas[filho]))
+
+            if animacoes:
+                self.play(*animacoes)
+
+            pais.clear()
+            pais.update(novos_pais)
+            self.wait(0.5)
+
+            # Reorganiza o desenho com as novas referências.
+            destinos = calcular_posicoes(raiz_atual)
+
+            movimentos = [
+                nos[valor].animate.move_to(posicao)
+                for valor, posicao in destinos.items()
+            ]
+
+            # Mantém cada aresta ligada aos nós durante o movimento.
+            for filho, pai in novos_pais.items():
+                movimentos.append(
+                    UpdateFromFunc(
+                        arestas[filho],
+                        lambda linha, p=pai, f=filho: linha.become(
+                            criar_aresta(p, f)
+                        ),
+                    )
+                )
+
+            self.play(*movimentos, run_time=2)
+
+        # ---------- 1. Rotação à esquerda em 15 ----------
+
+        self.play(
+            Transform(
+                titulo,
+                criar_texto("1. Rotacao a esquerda em 15", UP),
+            ),
+            Transform(
+                legenda,
+                criar_texto(
+                    "15.dir = 20; 22.esq = 15; 30.esq = 22",
+                    DOWN,
+                ),
+            ),
+            nos[15][0].animate.set_color(YELLOW),
+            nos[22][0].animate.set_color(ORANGE),
+        )
+        self.wait(1)
+
+        # O retorno da rotação substitui o filho esquerdo de 30.
+        filhos[30][0] = rotacionar_esquerda(15)
+
+        atualizar_desenho(raiz)
+        self.wait(2)
+
+        # ---------- 2. Rotação à direita em 30 ----------
+
+        self.play(
+            Transform(
+                titulo,
+                criar_texto("2. Rotacao a direita em 30", UP),
+            ),
+            Transform(
+                legenda,
+                criar_texto(
+                    "30.esq = None; 22.dir = 30; raiz = 22",
+                    DOWN,
+                ),
+            ),
+            nos[15][0].animate.set_color(WHITE),
+            nos[30][0].animate.set_color(YELLOW),
+        )
+        self.wait(1)
+
+        # Como 30 era a raiz da árvore, atualizamos raiz.
+        raiz = rotacionar_direita(raiz)
+
+        atualizar_desenho(raiz)
+
+        self.play(
+            nos[30][0].animate.set_color(WHITE),
+            nos[22][0].animate.set_color(GREEN),
+            Transform(
+                titulo,
+                criar_texto("Arvore balanceada: raiz = 22", UP),
+            ),
+            Transform(
+                legenda,
+                criar_texto(
+                    f"FB(22) = {fator_balanceamento(22)}; "
+                    f"FB(15) = {fator_balanceamento(15)}; "
+                    f"FB(30) = {fator_balanceamento(30)}",
+                    DOWN,
+                ),
+            ),
+        )
+        self.wait(3)
 
 class TextoFormulaFB(Scene):
 	def construct(self):
@@ -277,189 +503,296 @@ class CirurgiaSiamesa(Scene):
 
 from manim import *
 
+
 class ListaDuplamenteLigada(Scene):
     def construct(self):
-        # --- Configurações fixas ---
-        lado_no = 0.8
-        espaco_horizontal = 4.6
-        cor_no = WHITE
-        cor_seta = GOLD
-        n = 4  # Número de nós na lista
-        def criar_no(rotulo, posicao):
-            """Cria um quadrado com o valor centralizado dentro."""
+        n = 4
+        indice_remocao = 1
+
+        largura_no = 2.4
+        altura_no = 1.0
+        espaco_horizontal = 3.4
+        margem = 0.6
+
+        cor_next = GOLD
+        cor_prev = BLUE
+
+        # Ajusta o tamanho de acordo com a quantidade de nós.
+        largura_total = (
+            n * largura_no
+            + (n - 1) * (espaco_horizontal - largura_no)
+        )
+
+        escala = min(
+            1.0,
+            (config.frame_width - 2 * margem) / largura_total,
+        )
+
+        espaco_horizontal *= escala
+
+        def criar_no(valor, posicao):
             retangulo = Rectangle(
-            width=4,
-            height=2,
-            grid_ystep=3.0,
-            grid_xstep=1.30,
-            color=cor_no,
+                width=largura_no,
+                height=altura_no,
+                color=WHITE,
             )
-            texto = Text(rotulo, weight=BOLD, font_size=28)
-            retangulo.move_to(posicao)
-            texto.move_to(posicao)
-            return VGroup(retangulo, texto)
 
-        def criar_seta(no_origem, no_destino):
-
-            seta1 = Arrow(
-                start=no_origem[0].get_right(),
-                end=no_destino[0].get_left(),
-                stroke_width=4,
-                color=cor_seta,
-                buff=0.05,
+            # Campos: prev | valor | next
+            divisao_esquerda = Line(
+                [-0.6, -altura_no / 2, 0],
+                [-0.6, altura_no / 2, 0],
             )
-            seta2 = Arrow(
-                start=no_destino[0].get_left(),
-                end=no_origem[0].get_right(),
-                stroke_width=4,
-                color=cor_seta,
-                buff=0.05,
+            divisao_direita = Line(
+                [0.6, -altura_no / 2, 0],
+                [0.6, altura_no / 2, 0],
             )
-            seta2.shift(DOWN * 0.2)  # Ajusta a posição da seta de volta
-            return VGroup(seta1, seta2)
-        def remover_seta(seta):
-            self.play(FadeOut(seta))
-            self.wait()
-        def remover_no(no,lista):
-            self.play(FadeOut(no))
-            lista.remove(no)
-            self.wait()
-        def reposicionar_lista(lista, nova_posicao):
-            self.play(lista.animate.move_to(nova_posicao))
-            self.wait()
-        def remocao_completa(lista, nos, setas, indice):
-            if not 0 <= indice < len(nos):
-                raise IndexError("Índice de nó inválido")
 
-            no_removido = nos[indice]
+            texto = Text(str(valor), font_size=28, weight=BOLD)
 
-            # setas[i] liga nos[i] a nos[i + 1].
-            afetadas = [
-                seta
-                for i, seta in enumerate(setas)
-                if i in (indice - 1, indice)
-            ]
+            texto_prev = Text(
+                "prev", font_size=12, color=cor_prev
+            ).move_to(LEFT * 0.9)
 
-            preservadas = [
-                (seta, nos[i])
-                for i, seta in enumerate(setas)
-                if i not in (indice - 1, indice)
-            ]
+            texto_next = Text(
+                "next", font_size=12, color=cor_next
+            ).move_to(RIGHT * 0.9)
 
-            # Se há vizinhos dos dois lados, prepara a nova ligação.
-            # A cópia preserva o tamanho e o estilo das setas já escaladas.
-            nova_seta = None
+            return VGroup(
+                retangulo,
+                divisao_esquerda,
+                divisao_direita,
+                texto,
+                texto_prev,
+                texto_next,
+            ).scale(escala).move_to(posicao)
 
-            if 0 < indice < len(nos) - 1:
-                nova_seta = setas[indice - 1].copy()
-                vizinho_esquerdo = nos[indice - 1]
-                posicao_anterior = vizinho_esquerdo.get_center().copy()
+        def criar_seta(origem, destino, sentido, curva=False):
+            afastamento = 0.16 * escala
+            folga = 0.04 * escala
+
+            if sentido == "next":
+                inicio = (
+                    origem[0].get_right()
+                    + UP * afastamento
+                    + RIGHT * folga
+                )
+                fim = (
+                    destino[0].get_left()
+                    + UP * afastamento
+                    + LEFT * folga
+                )
+                cor = cor_next
+            else:
+                inicio = (
+                    origem[0].get_left()
+                    + DOWN * afastamento
+                    + LEFT * folga
+                )
+                fim = (
+                    destino[0].get_right()
+                    + DOWN * afastamento
+                    + RIGHT * folga
+                )
+                cor = cor_prev
+
+            if curva:
+                # next passa acima; prev passa abaixo.
+                return CurvedArrow(
+                    inicio,
+                    fim,
+                    angle=-PI / 3,
+                    color=cor,
+                    stroke_width=3,
+                    tip_length=0.15 * escala,
+                )
+
+            return Arrow(
+                inicio,
+                fim,
+                buff=0,
+                color=cor,
+                stroke_width=3,
+                tip_length=0.15 * escala,
+            )
+
+        def criar_ligacao(esquerdo, direito):
+            return VGroup(
+                criar_seta(esquerdo, direito, "next"),
+                criar_seta(direito, esquerdo, "prev"),
+            )
+
+        def criar_legenda(texto):
+            legenda = Text(texto, font_size=25)
+
+            if legenda.width > config.frame_width - 1:
+                legenda.scale_to_fit_width(config.frame_width - 1)
+
+            return legenda.to_edge(UP, buff=0.4)
+
+        def remover_intermediario(nos, setas, indice):
+            if not 0 < indice < len(nos) - 1:
+                raise ValueError(
+                    "Esta função remove apenas nós intermediários."
+                )
+
+            anterior = nos[indice - 1]
+            removido = nos[indice]
+            proximo = nos[indice + 1]
+
+            # Cada ligação contém [next, prev].
+            ligacao_esquerda = setas[indice - 1]
+            ligacao_direita = setas[indice]
+
+            # Ponteiros dos vizinhos que serão redirecionados.
+            next_anterior = ligacao_esquerda[0]
+            prev_proximo = ligacao_direita[1]
+
+            # Ponteiros pertencentes ao nó removido.
+            prev_removido = ligacao_esquerda[1]
+            next_removido = ligacao_direita[0]
+
+            legenda = criar_legenda(
+                "Identificar anterior, removido e proximo"
+            )
 
             self.play(
-                FadeOut(no_removido),
-                *[FadeOut(seta) for seta in afetadas],
+                FadeIn(legenda),
+                removido.animate.set_color(RED),
+            )
+            self.wait(1)
+
+            # 1. anterior.next = proximo
+            self.play(
+                Transform(
+                    legenda,
+                    criar_legenda("anterior.next = proximo"),
+                ),
+                Transform(
+                    next_anterior,
+                    criar_seta(
+                        anterior, proximo, "next", curva=True
+                    ),
+                ),
+            )
+            self.wait(1)
+
+            # 2. proximo.prev = anterior
+            self.play(
+                Transform(
+                    legenda,
+                    criar_legenda("proximo.prev = anterior"),
+                ),
+                Transform(
+                    prev_proximo,
+                    criar_seta(
+                        proximo, anterior, "prev", curva=True
+                    ),
+                ),
+            )
+            self.wait(1)
+
+            # 3. Os vizinhos já contornam o nó.
+            # Agora ele e seus próprios ponteiros podem desaparecer.
+            self.play(
+                Transform(
+                    legenda,
+                    criar_legenda("Remover o no desconectado"),
+                ),
             )
 
-            lista.remove(no_removido, *afetadas)
+            self.play(
+                FadeOut(removido),
+                FadeOut(prev_removido),
+                FadeOut(next_removido),
+            )
+
             nos.pop(indice)
-            setas[:] = [seta for seta, _ in preservadas]
 
-            if not nos:
-                return
+            # Reaproveita as duas setas redirecionadas.
+            nova_ligacao = VGroup(next_anterior, prev_proximo)
 
-            largura_total = (len(nos) - 1) * espaco_horizontal
+            # Substitui as duas ligações antigas por uma.
+            setas[indice - 1:indice + 1] = [nova_ligacao]
+
+            self.wait(1)
+
+            # 4. Organização visual, após concluir a remoção.
+            self.play(
+                Transform(
+                    legenda,
+                    criar_legenda("Reorganizar o desenho"),
+                ),
+            )
+
+            largura_centros = (
+                len(nos) - 1
+            ) * espaco_horizontal
 
             destinos = [
-                RIGHT * (i * espaco_horizontal - largura_total / 2)
+                RIGHT * (
+                    i * espaco_horizontal - largura_centros / 2
+                )
                 for i in range(len(nos))
             ]
 
-            # Calcula os deslocamentos antes de começar a animação.
-            deslocamentos = {
-                id(no): destino - no.get_center()
-                for no, destino in zip(nos, destinos)
-            }
+            # Cópias nas posições finais servem de referência
+            # para os destinos das setas.
+            nos_destino = [
+                no.copy().move_to(posicao)
+                for no, posicao in zip(nos, destinos)
+            ]
 
-            self.play(
-                *[
-                    no.animate.move_to(destino)
-                    for no, destino in zip(nos, destinos)
-                ],
-                *[
-                    seta.animate.shift(deslocamentos[id(origem)])
-                    for seta, origem in preservadas
-                ],
-            )
+            animacoes = [
+                no.animate.move_to(posicao)
+                for no, posicao in zip(nos, destinos)
+            ]
 
-            if nova_seta is not None:
-                nova_seta.shift(
-                    vizinho_esquerdo.get_center() - posicao_anterior
+            # As ligações continuam visíveis durante o movimento.
+            for i, ligacao in enumerate(setas):
+                animacoes.append(
+                    Transform(
+                        ligacao,
+                        criar_ligacao(
+                            nos_destino[i],
+                            nos_destino[i + 1],
+                        ),
+                    )
                 )
 
-                # Mantém a ordem das ligações na lista Python.
-                setas.insert(indice - 1, nova_seta)
-                lista.add(nova_seta)
+            self.play(*animacoes, run_time=1.5)
+            self.play(FadeOut(legenda))
+            self.wait(2)
 
-                self.play(Create(nova_seta))
+        # Criação da lista.
+        largura_centros = (n - 1) * espaco_horizontal
 
-            self.wait()
-        def ajustar_setas(nos, setas):
-            for i in range(len(setas)):
-                seta1, seta2 = setas[i]
-                seta1.put_start_and_end_on(
-                    nos[i][0].get_right(), nos[i + 1][0].get_left()
-                )
-                seta2.put_start_and_end_on(
-                    nos[i + 1][0].get_left(), nos[i][0].get_right()
-                )
-                seta2.shift(DOWN * 0.2)
-            self.wait()
-        n = 4  # Número de nós na lista
-        # --- Posicionamento em linha, centralizado ---
-        largura_total = (n - 1) * espaco_horizontal
         posicoes = [
-            LEFT * (largura_total / 2) + RIGHT * i * espaco_horizontal
+            RIGHT * (
+                i * espaco_horizontal - largura_centros / 2
+            )
             for i in range(n)
         ]
 
-        # --- Criação dos nós ---
-        nos = [criar_no(str(i), posicoes[i]) for i in range(n)]
+        nos = [
+            criar_no(i, posicoes[i])
+            for i in range(n)
+        ]
 
-        # --- Criação das setas entre nós consecutivos ---
-        setas = [criar_seta(nos[i], nos[i + 1]) for i in range(3)]
-        lista = VGroup(*nos, *setas)
-        # Margem em cada lado da cena, em unidades do Manim.
-        margem = 0.5
+        setas = [
+            criar_ligacao(nos[i], nos[i + 1])
+            for i in range(n - 1)
+        ]
 
-        largura_disponivel = config.frame_width - 2 * margem
-        altura_disponivel = config.frame_height - 2 * margem
-
-        # Reduz apenas quando necessário, preservando as proporções.
-        fator = min(
-            1.0,
-            largura_disponivel / lista.width,
-            altura_disponivel / lista.height,
-        )
-
-        lista.scale(fator)
-        lista.move_to(ORIGIN)
-
-        # Mantém o reposicionamento após a remoção compatível
-        # com o tamanho que acabamos de aplicar.
-        espaco_horizontal *= fator
-
-        # --- Animação ---
         self.play(FadeIn(nos[0]))
-        for i in range(n-1):
+
+        for i in range(n - 1):
             self.play(
-                Create(setas[i]),
                 FadeIn(nos[i + 1]),
+                Create(setas[i]),
             )
-        self.wait()
-        
-        remocao_completa(lista, nos, setas, 1)
-        #ajustar_setas(nos, setas)
-        self.wait()
+
+        self.wait(1)
+        remover_intermediario(nos, setas, indice_remocao)
 
 class VerticalLineInSquare(Scene):
     def construct(self):
@@ -557,3 +890,923 @@ class RepresentacaoListas(Scene):
         #self.play(Write(texto))
         self.wait(10)
         self.play(FadeOut(titulo,no))
+
+class ExemploSICFEI(Scene):
+     def construct(self):
+        n = 4
+        indice_remocao = 1
+
+        largura_no = 2.4
+        altura_no = 1.0
+        espaco_horizontal = 3.4
+        margem = 0.6
+
+        cor_next = GOLD
+        cor_prev = BLUE
+
+        # Ajusta o tamanho de acordo com a quantidade de nós.
+        largura_total = (
+            n * largura_no
+            + (n - 1) * (espaco_horizontal - largura_no)
+        )
+
+        escala = min(
+            1.0,
+            (config.frame_width - 2 * margem) / largura_total,
+        )
+
+        espaco_horizontal *= escala
+
+        def criar_no(valor, posicao):
+            retangulo = Rectangle(
+                width=largura_no,
+                height=altura_no,
+                color=WHITE,
+            )
+
+            # Campos: prev | valor | next
+            divisao_esquerda = Line(
+                [-0.6, -altura_no / 2, 0],
+                [-0.6, altura_no / 2, 0],
+            )
+            divisao_direita = Line(
+                [0.6, -altura_no / 2, 0],
+                [0.6, altura_no / 2, 0],
+            )
+
+            texto = Text(str(valor), font_size=28, weight=BOLD)
+
+            texto_prev = Text(
+                "prev", font_size=12, color=cor_prev
+            ).move_to(LEFT * 0.9)
+
+            texto_next = Text(
+                "next", font_size=12, color=cor_next
+            ).move_to(RIGHT * 0.9)
+
+            return VGroup(
+                retangulo,
+                divisao_esquerda,
+                divisao_direita,
+                texto,
+                texto_prev,
+                texto_next,
+            ).scale(escala).move_to(posicao)
+
+        def criar_seta(origem, destino, sentido, curva=False):
+            afastamento = 0.16 * escala
+            folga = 0.04 * escala
+
+            if sentido == "next":
+                inicio = (
+                    origem[0].get_right()
+                    + UP * afastamento
+                    + RIGHT * folga
+                )
+                fim = (
+                    destino[0].get_left()
+                    + UP * afastamento
+                    + LEFT * folga
+                )
+                cor = cor_next
+            else:
+                inicio = (
+                    origem[0].get_left()
+                    + DOWN * afastamento
+                    + LEFT * folga
+                )
+                fim = (
+                    destino[0].get_right()
+                    + DOWN * afastamento
+                    + RIGHT * folga
+                )
+                cor = cor_prev
+
+            if curva:
+                # next passa acima; prev passa abaixo.
+                return CurvedArrow(
+                    inicio,
+                    fim,
+                    angle=-PI / 3,
+                    color=cor,
+                    stroke_width=3,
+                    tip_length=0.15 * escala,
+                )
+
+            return Arrow(
+                inicio,
+                fim,
+                buff=0,
+                color=cor,
+                stroke_width=3,
+                tip_length=0.15 * escala,
+            )
+
+        def criar_ligacao(esquerdo, direito):
+            return VGroup(
+                criar_seta(esquerdo, direito, "next"),
+                criar_seta(direito, esquerdo, "prev"),
+            )
+
+        def criar_legenda(texto):
+            legenda = Text(texto, font_size=25)
+
+            if legenda.width > config.frame_width - 1:
+                legenda.scale_to_fit_width(config.frame_width - 1)
+
+            return legenda.to_edge(UP, buff=0.4)
+
+        def remover_intermediario(nos, setas, indice):
+            if not 0 < indice < len(nos) - 1:
+                raise ValueError(
+                    "Esta função remove apenas nós intermediários."
+                )
+
+            anterior = nos[indice - 1]
+            removido = nos[indice]
+            proximo = nos[indice + 1]
+
+            # Cada ligação contém [next, prev].
+            ligacao_esquerda = setas[indice - 1]
+            ligacao_direita = setas[indice]
+
+            # Ponteiros dos vizinhos que serão redirecionados.
+            next_anterior = ligacao_esquerda[0]
+            prev_proximo = ligacao_direita[1]
+
+            # Ponteiros pertencentes ao nó removido.
+            prev_removido = ligacao_esquerda[1]
+            next_removido = ligacao_direita[0]
+
+            legenda = criar_legenda(
+                "Identificar anterior, removido e proximo"
+            )
+
+            self.play(
+                FadeIn(legenda),
+                removido.animate.set_color(RED),
+            )
+            self.wait(1)
+
+            # 1. anterior.next = proximo
+            self.play(
+                Transform(
+                    legenda,
+                    criar_legenda("anterior.next = proximo"),
+                ),
+                Transform(
+                    next_anterior,
+                    criar_seta(
+                        anterior, proximo, "next", curva=True
+                    ),
+                ),
+            )
+            self.wait(1)
+
+            # 2. proximo.prev = anterior
+            self.play(
+                Transform(
+                    legenda,
+                    criar_legenda("proximo.prev = anterior"),
+                ),
+                Transform(
+                    prev_proximo,
+                    criar_seta(
+                        proximo, anterior, "prev", curva=True
+                    ),
+                ),
+            )
+            self.wait(1)
+
+            # 3. Os vizinhos já contornam o nó.
+            # Agora ele e seus próprios ponteiros podem desaparecer.
+            self.play(
+                Transform(
+                    legenda,
+                    criar_legenda("Remover o no desconectado"),
+                ),
+            )
+
+            self.play(
+                FadeOut(removido),
+                FadeOut(prev_removido),
+                FadeOut(next_removido),
+            )
+
+            nos.pop(indice)
+
+            # Reaproveita as duas setas redirecionadas.
+            nova_ligacao = VGroup(next_anterior, prev_proximo)
+
+            # Substitui as duas ligações antigas por uma.
+            setas[indice - 1:indice + 1] = [nova_ligacao]
+
+            self.wait(1)
+
+            # 4. Organização visual, após concluir a remoção.
+            self.play(
+                Transform(
+                    legenda,
+                    criar_legenda("Reorganizar o desenho"),
+                ),
+            )
+
+            largura_centros = (
+                len(nos) - 1
+            ) * espaco_horizontal
+
+            destinos = [
+                RIGHT * (
+                    i * espaco_horizontal - largura_centros / 2
+                )
+                for i in range(len(nos))
+            ]
+
+            # Cópias nas posições finais servem de referência
+            # para os destinos das setas.
+            nos_destino = [
+                no.copy().move_to(posicao)
+                for no, posicao in zip(nos, destinos)
+            ]
+
+            animacoes = [
+                no.animate.move_to(posicao)
+                for no, posicao in zip(nos, destinos)
+            ]
+
+            # As ligações continuam visíveis durante o movimento.
+            for i, ligacao in enumerate(setas):
+                animacoes.append(
+                    Transform(
+                        ligacao,
+                        criar_ligacao(
+                            nos_destino[i],
+                            nos_destino[i + 1],
+                        ),
+                    )
+                )
+
+            self.play(*animacoes, run_time=1.5)
+            self.play(FadeOut(legenda))
+            self.wait(2)
+
+        # Criação da lista.
+        largura_centros = (n - 1) * espaco_horizontal
+
+        posicoes = [
+            RIGHT * (
+                i * espaco_horizontal - largura_centros / 2
+            )
+            for i in range(n)
+        ]
+
+        nos = [
+            criar_no(i, posicoes[i])
+            for i in range(n)
+        ]
+
+        setas = [
+            criar_ligacao(nos[i], nos[i + 1])
+            for i in range(n - 1)
+        ]
+
+        self.play(FadeIn(nos[0]))
+
+        for i in range(n - 1):
+            self.play(
+                FadeIn(nos[i + 1]),
+                Create(setas[i]),
+            )
+
+        self.wait(1)
+        remover_intermediario(nos, setas, indice_remocao)
+        raio_no = 0.4
+        cor_no = WHITE
+        cor_aresta = GOLD
+
+        # Estrutura lógica: valor -> [filho esquerdo, filho direito].
+        # None representa um filho inexistente.
+        filhos = {
+            30: [15, 45],
+            15: [7, 22],
+            45: [None, None],
+            7:  [None, None],
+            22: [20, None],
+            20: [None, None],
+        }
+
+        raiz = 30
+
+        # ---------- Operações na estrutura ----------
+
+        def altura(valor):
+            if valor is None:
+                return 0
+
+            esquerdo, direito = filhos[valor]
+            return 1 + max(altura(esquerdo), altura(direito))
+
+        def fator_balanceamento(valor):
+            esquerdo, direito = filhos[valor]
+            return altura(esquerdo) - altura(direito)
+
+        def rotacionar_esquerda(x):
+            y = filhos[x][1]
+
+            if y is None:
+                raise ValueError("A rotação exige um filho direito.")
+
+            beta = filhos[y][0]
+
+            # Transfere a subárvore intermediária.
+            filhos[x][1] = beta
+
+            # x passa a ser filho esquerdo de y.
+            filhos[y][0] = x
+
+            # Nova raiz da subárvore.
+            return y
+
+        def rotacionar_direita(y):
+            x = filhos[y][0]
+
+            if x is None:
+                raise ValueError("A rotação exige um filho esquerdo.")
+
+            beta = filhos[x][1]
+
+            # Transfere a subárvore intermediária.
+            filhos[y][0] = beta
+
+            # y passa a ser filho direito de x.
+            filhos[x][1] = y
+
+            # Nova raiz da subárvore.
+            return x
+
+        # ---------- Objetos visuais ----------
+
+        def criar_no(valor, posicao):
+            circulo = Circle(
+                radius=raio_no,
+                color=cor_no,
+                fill_color=BLACK,
+                fill_opacity=1,
+            )
+
+            texto = Text(
+                str(valor),
+                weight=BOLD,
+                font_size=28,
+            )
+
+            return VGroup(circulo, texto).move_to(posicao)
+
+        def criar_aresta(pai, filho):
+            return Line(
+                nos[pai][0].get_center(),
+                nos[filho][0].get_center(),
+                buff=raio_no,
+                stroke_width=4,
+                color=cor_aresta,
+            ).set_z_index(-1)
+
+        def calcular_posicoes(raiz_atual):
+            posicoes = {}
+
+            def visitar(valor, x, y, distancia):
+                if valor is None:
+                    return
+
+                posicoes[valor] = RIGHT * x + UP * y
+                esquerdo, direito = filhos[valor]
+
+                visitar(
+                    esquerdo,
+                    x - distancia,
+                    y - 1.15,
+                    distancia / 2,
+                )
+                visitar(
+                    direito,
+                    x + distancia,
+                    y - 1.15,
+                    distancia / 2,
+                )
+
+            visitar(raiz_atual, 0, 1.7, 2.8)
+            return posicoes
+
+        def obter_pais(raiz_atual):
+            # Cada nó, exceto a raiz, tem uma aresta de entrada.
+            pais = {}
+
+            def visitar(valor):
+                if valor is None:
+                    return
+
+                for filho in filhos[valor]:
+                    if filho is not None:
+                        pais[filho] = valor
+                        visitar(filho)
+
+            visitar(raiz_atual)
+            return pais
+
+        def criar_texto(texto, direcao):
+            objeto = Text(texto, font_size=23)
+
+            if objeto.width > config.frame_width - 1:
+                objeto.scale_to_fit_width(config.frame_width - 1)
+
+            return objeto.to_edge(direcao, buff=0.35)
+
+        posicoes = calcular_posicoes(raiz)
+
+        nos = {
+            valor: criar_no(valor, posicoes[valor])
+            for valor in filhos
+        }
+
+        pais = obter_pais(raiz)
+
+        # As arestas são identificadas pelo filho de destino.
+        arestas = {
+            filho: criar_aresta(pai, filho)
+            for filho, pai in pais.items()
+        }
+
+        titulo = criar_texto(
+            "Caso LR: FB(30) = 2 e FB(15) = -1",
+            UP,
+        )
+        legenda = criar_texto(
+            "FB = altura(esquerda) - altura(direita)",
+            DOWN,
+        )
+
+        self.play(FadeIn(titulo), FadeIn(legenda))
+
+        self.play(
+            LaggedStart(
+                *[FadeIn(no) for no in nos.values()],
+                lag_ratio=0.15,
+            )
+        )
+        self.play(*[Create(aresta) for aresta in arestas.values()])
+        self.wait(2)
+
+        # ---------- Atualização da animação ----------
+
+        def atualizar_desenho(raiz_atual):
+            novos_pais = obter_pais(raiz_atual)
+            animacoes = []
+
+            # Uma nova raiz perde sua aresta de entrada.
+            for filho in list(arestas):
+                if filho not in novos_pais:
+                    animacoes.append(FadeOut(arestas.pop(filho)))
+
+            # Redireciona as arestas cujo pai mudou.
+            # As demais continuam visíveis.
+            for filho, pai in novos_pais.items():
+                if filho in arestas:
+                    if pais.get(filho) != pai:
+                        animacoes.append(
+                            Transform(
+                                arestas[filho],
+                                criar_aresta(pai, filho),
+                            )
+                        )
+                else:
+                    arestas[filho] = criar_aresta(pai, filho)
+                    animacoes.append(Create(arestas[filho]))
+
+            if animacoes:
+                self.play(*animacoes)
+
+            pais.clear()
+            pais.update(novos_pais)
+            self.wait(0.5)
+
+            # Reorganiza o desenho com as novas referências.
+            destinos = calcular_posicoes(raiz_atual)
+
+            movimentos = [
+                nos[valor].animate.move_to(posicao)
+                for valor, posicao in destinos.items()
+            ]
+
+            # Mantém cada aresta ligada aos nós durante o movimento.
+            for filho, pai in novos_pais.items():
+                movimentos.append(
+                    UpdateFromFunc(
+                        arestas[filho],
+                        lambda linha, p=pai, f=filho: linha.become(
+                            criar_aresta(p, f)
+                        ),
+                    )
+                )
+
+            self.play(*movimentos, run_time=2)
+
+        # ---------- 1. Rotação à esquerda em 15 ----------
+
+        self.play(
+            Transform(
+                titulo,
+                criar_texto("1. Rotacao a esquerda em 15", UP),
+            ),
+            Transform(
+                legenda,
+                criar_texto(
+                    "15.dir = 20; 22.esq = 15; 30.esq = 22",
+                    DOWN,
+                ),
+            ),
+            nos[15][0].animate.set_color(YELLOW),
+            nos[22][0].animate.set_color(ORANGE),
+        )
+        self.wait(1)
+
+        # O retorno da rotação substitui o filho esquerdo de 30.
+        filhos[30][0] = rotacionar_esquerda(15)
+
+        atualizar_desenho(raiz)
+        self.wait(2)
+
+        # ---------- 2. Rotação à direita em 30 ----------
+
+        self.play(
+            Transform(
+                titulo,
+                criar_texto("2. Rotacao a direita em 30", UP),
+            ),
+            Transform(
+                legenda,
+                criar_texto(
+                    "30.esq = None; 22.dir = 30; raiz = 22",
+                    DOWN,
+                ),
+            ),
+            nos[15][0].animate.set_color(WHITE),
+            nos[30][0].animate.set_color(YELLOW),
+        )
+        self.wait(1)
+
+        # Como 30 era a raiz da árvore, atualizamos raiz.
+        raiz = rotacionar_direita(raiz)
+
+        atualizar_desenho(raiz)
+
+        self.play(
+            nos[30][0].animate.set_color(WHITE),
+            nos[22][0].animate.set_color(GREEN),
+            Transform(
+                titulo,
+                criar_texto("Arvore balanceada: raiz = 22", UP),
+            ),
+            Transform(
+                legenda,
+                criar_texto(
+                    f"FB(22) = {fator_balanceamento(22)}; "
+                    f"FB(15) = {fator_balanceamento(15)}; "
+                    f"FB(30) = {fator_balanceamento(30)}",
+                    DOWN,
+                ),
+            ),
+        )
+        self.wait(3)
+
+
+
+
+
+class ExemploSICFEI2(Scene):
+    def construct(self):
+        # Uma única Scene gera um único vídeo.
+        self.demonstrar_lista(n=4, indice=1)
+        self.play(*[FadeOut(objeto) for objeto in list(self.mobjects)])
+        self.wait(0.5)
+        self.demonstrar_avl()
+
+    def texto_na_borda(self, texto, direcao, tamanho=25):
+        objeto = Text(texto, font_size=tamanho)
+        if objeto.width > config.frame_width - 1:
+            objeto.scale_to_fit_width(config.frame_width - 1)
+        return objeto.to_edge(direcao, buff=0.35)
+
+    def demonstrar_lista(self, n=4, indice=1):
+        # A demonstração trata a remoção de um nó intermediário.
+        if not 0 < indice < n - 1:
+            raise ValueError("Escolha um nó intermediário para remover.")
+
+        largura_no = 2.4
+        altura_no = 1.0
+        distancia_base = 3.4
+        largura_total = largura_no + (n - 1) * distancia_base
+        escala = min(1.0, (config.frame_width - 1.2) / largura_total)
+        distancia = distancia_base * escala
+
+        titulo = self.texto_na_borda("Lista duplamente ligada", UP)
+        legenda = self.texto_na_borda(
+            "Dourado: next | Azul: prev", DOWN
+        )
+
+        def criar_no(valor, posicao):
+            caixa = Rectangle(width=largura_no, height=altura_no)
+            divisoes = VGroup(*[
+                Line([x, -0.5, 0], [x, 0.5, 0])
+                for x in (-0.6, 0.6)
+            ])
+            valor_texto = Text(str(valor), font_size=28, weight=BOLD)
+            prev = Text("prev", font_size=12, color=BLUE).shift(LEFT * 0.9)
+            next_ = Text("next", font_size=12, color=GOLD).shift(RIGHT * 0.9)
+            return VGroup(caixa, divisoes, valor_texto, prev, next_).scale(
+                escala
+            ).move_to(posicao)
+
+        def criar_seta(origem, destino, sentido, curva=False):
+            afastamento = 0.16 * escala
+            folga = 0.04 * escala
+            if sentido == "next":
+                inicio = origem[0].get_right() + UP * afastamento + RIGHT * folga
+                fim = destino[0].get_left() + UP * afastamento + LEFT * folga
+                cor = GOLD
+            else:
+                inicio = origem[0].get_left() + DOWN * afastamento + LEFT * folga
+                fim = destino[0].get_right() + DOWN * afastamento + RIGHT * folga
+                cor = BLUE
+            estilo = dict(color=cor, stroke_width=3, tip_length=0.15 * escala)
+            if curva:
+                return CurvedArrow(inicio, fim, angle=-PI / 3, **estilo)
+            return Arrow(inicio, fim, buff=0, **estilo)
+
+        def criar_ligacao(esquerdo, direito):
+            return VGroup(
+                criar_seta(esquerdo, direito, "next"),
+                criar_seta(direito, esquerdo, "prev"),
+            )
+
+        def posicoes(quantidade):
+            return [
+                RIGHT * ((i - (quantidade - 1) / 2) * distancia)
+                for i in range(quantidade)
+            ]
+
+        nos = [criar_no(i, p) for i, p in enumerate(posicoes(n))]
+        setas = [criar_ligacao(nos[i], nos[i + 1]) for i in range(n - 1)]
+
+        # Relações lógicas independentes das posições no desenho.
+        ponteiros = {
+            i: {"prev": i - 1 if i > 0 else None,
+                "next": i + 1 if i < n - 1 else None}
+            for i in range(n)
+        }
+
+        self.play(FadeIn(titulo), FadeIn(legenda), FadeIn(nos[0]))
+        for i in range(n - 1):
+            self.play(Create(setas[i]), FadeIn(nos[i + 1]))
+        self.wait(1)
+
+        anterior_valor = ponteiros[indice]["prev"]
+        proximo_valor = ponteiros[indice]["next"]
+        anterior, removido, proximo = nos[indice - 1:indice + 2]
+        next_anterior, prev_removido = setas[indice - 1]
+        next_removido, prev_proximo = setas[indice]
+
+        self.play(
+            removido.animate.set_color(RED),
+            Transform(legenda, self.texto_na_borda(
+                "Identificar anterior, removido e proximo", DOWN
+            )),
+        )
+        self.wait(1)
+
+        # Primeiro redireciona o ponteiro next do vizinho anterior.
+        ponteiros[anterior_valor]["next"] = proximo_valor
+        self.play(
+            Transform(legenda, self.texto_na_borda(
+                "anterior.next = proximo", DOWN
+            )),
+            Transform(next_anterior, criar_seta(
+                anterior, proximo, "next", curva=True
+            )),
+        )
+        self.wait(1)
+
+        # Depois redireciona o ponteiro prev do próximo vizinho.
+        ponteiros[proximo_valor]["prev"] = anterior_valor
+        self.play(
+            Transform(legenda, self.texto_na_borda(
+                "proximo.prev = anterior", DOWN
+            )),
+            Transform(prev_proximo, criar_seta(
+                proximo, anterior, "prev", curva=True
+            )),
+        )
+        self.wait(1)
+
+        self.play(Transform(legenda, self.texto_na_borda(
+            "Remover o no desconectado", DOWN
+        )))
+        self.play(
+            FadeOut(removido), FadeOut(prev_removido), FadeOut(next_removido)
+        )
+        del ponteiros[indice]
+        nos.pop(indice)
+        setas[indice - 1:indice + 1] = [VGroup(next_anterior, prev_proximo)]
+        self.wait(1)
+
+        self.play(Transform(legenda, self.texto_na_borda(
+            "Reorganizar o desenho", DOWN
+        )))
+        destinos = posicoes(len(nos))
+        referencias = [no.copy().move_to(p) for no, p in zip(nos, destinos)]
+        animacoes = [no.animate.move_to(p) for no, p in zip(nos, destinos)]
+        animacoes.extend(
+            Transform(ligacao, criar_ligacao(referencias[i], referencias[i + 1]))
+            for i, ligacao in enumerate(setas)
+        )
+        self.play(*animacoes, run_time=1.5)
+        self.play(Transform(legenda, self.texto_na_borda(
+            "Os vizinhos agora apontam um para o outro", DOWN
+        )))
+        self.wait(2)
+
+    def demonstrar_avl(self):
+        raio_no = 0.4
+
+        # valor -> [filho esquerdo, filho direito]
+        filhos = {
+            30: [15, 45],
+            15: [7, 22],
+            45: [None, None],
+            7: [None, None],
+            22: [20, None],
+            20: [None, None],
+        }
+        raiz = 30
+
+        def altura(valor):
+            if valor is None:
+                return 0
+            esquerdo, direito = filhos[valor]
+            return 1 + max(altura(esquerdo), altura(direito))
+
+        def fator_balanceamento(valor):
+            esquerdo, direito = filhos[valor]
+            return altura(esquerdo) - altura(direito)
+
+        def rotacionar_esquerda(x):
+            y = filhos[x][1]
+            if y is None:
+                raise ValueError("A rotação exige um filho direito.")
+            beta = filhos[y][0]
+            filhos[x][1] = beta
+            filhos[y][0] = x
+            return y
+
+        def rotacionar_direita(y):
+            x = filhos[y][0]
+            if x is None:
+                raise ValueError("A rotação exige um filho esquerdo.")
+            beta = filhos[x][1]
+            filhos[y][0] = beta
+            filhos[x][1] = y
+            return x
+
+        def calcular_posicoes(raiz_atual):
+            resultado = {}
+
+            def visitar(valor, x, y, distancia):
+                if valor is None:
+                    return
+                resultado[valor] = RIGHT * x + UP * y
+                esquerdo, direito = filhos[valor]
+                visitar(esquerdo, x - distancia, y - 1.15, distancia / 2)
+                visitar(direito, x + distancia, y - 1.15, distancia / 2)
+
+            visitar(raiz_atual, 0, 1.7, 2.8)
+            return resultado
+
+        def obter_pais(raiz_atual):
+            resultado = {}
+
+            def visitar(valor):
+                for filho in filhos[valor]:
+                    if filho is not None:
+                        resultado[filho] = valor
+                        visitar(filho)
+
+            visitar(raiz_atual)
+            return resultado
+
+        def criar_no(valor, posicao):
+            circulo = Circle(
+                radius=raio_no, color=WHITE,
+                fill_color=BLACK, fill_opacity=1,
+            )
+            texto = Text(str(valor), weight=BOLD, font_size=28)
+            return VGroup(circulo, texto).move_to(posicao)
+
+        def criar_aresta(pai, filho):
+            return Line(
+                nos[pai][0].get_center(), nos[filho][0].get_center(),
+                buff=raio_no, stroke_width=4, color=GOLD,
+            ).set_z_index(-1)
+
+        posicoes = calcular_posicoes(raiz)
+        nos = {valor: criar_no(valor, posicoes[valor]) for valor in filhos}
+        pais = obter_pais(raiz)
+        arestas = {
+            filho: criar_aresta(pai, filho) for filho, pai in pais.items()
+        }
+        titulo = self.texto_na_borda("Arvore AVL: caso LR", UP)
+        legenda = self.texto_na_borda(
+            "FB = altura(esquerda) - altura(direita)", DOWN
+        )
+        self.play(FadeIn(titulo), FadeIn(legenda))
+        self.play(LaggedStart(
+            *[FadeIn(no) for no in nos.values()], lag_ratio=0.15
+        ))
+        self.play(*[Create(aresta) for aresta in arestas.values()])
+        self.play(Transform(legenda, self.texto_na_borda(
+            "FB(30) = 2; FB(15) = -1: rotacao dupla LR", DOWN
+        )))
+        self.wait(2)
+
+        def atualizar_desenho(raiz_atual):
+            novos_pais = obter_pais(raiz_atual)
+            animacoes = []
+            for filho in list(arestas):
+                if filho not in novos_pais:
+                    animacoes.append(FadeOut(arestas.pop(filho)))
+            for filho, pai in novos_pais.items():
+                if filho in arestas:
+                    if pais.get(filho) != pai:
+                        animacoes.append(Transform(
+                            arestas[filho], criar_aresta(pai, filho)
+                        ))
+                else:
+                    arestas[filho] = criar_aresta(pai, filho)
+                    animacoes.append(Create(arestas[filho]))
+            if animacoes:
+                self.play(*animacoes)
+            pais.clear()
+            pais.update(novos_pais)
+            self.wait(0.5)
+
+            destinos = calcular_posicoes(raiz_atual)
+            movimentos = [
+                nos[valor].animate.move_to(posicao)
+                for valor, posicao in destinos.items()
+            ]
+            for filho, pai in novos_pais.items():
+                movimentos.append(UpdateFromFunc(
+                    arestas[filho],
+                    lambda linha, p=pai, f=filho: linha.become(criar_aresta(p, f)),
+                ))
+            self.play(*movimentos, run_time=2)
+
+        self.play(
+            Transform(titulo, self.texto_na_borda(
+                "1. Rotacao a esquerda em 15", UP
+            )),
+            Transform(legenda, self.texto_na_borda(
+                "15.dir = 20; 22.esq = 15; 30.esq = 22", DOWN
+            )),
+            nos[15][0].animate.set_color(YELLOW),
+            nos[22][0].animate.set_color(ORANGE),
+        )
+        self.wait(1)
+        filhos[30][0] = rotacionar_esquerda(15)
+        atualizar_desenho(raiz)
+        self.wait(2)
+
+        self.play(
+            Transform(titulo, self.texto_na_borda(
+                "2. Rotacao a direita em 30", UP
+            )),
+            Transform(legenda, self.texto_na_borda(
+                "30.esq = None; 22.dir = 30; raiz = 22", DOWN
+            )),
+            nos[15][0].animate.set_color(WHITE),
+            nos[30][0].animate.set_color(YELLOW),
+        )
+        self.wait(1)
+        raiz = rotacionar_direita(raiz)
+        atualizar_desenho(raiz)
+        self.play(
+            nos[30][0].animate.set_color(WHITE),
+            nos[22][0].animate.set_color(GREEN),
+            Transform(titulo, self.texto_na_borda(
+                "Arvore balanceada: raiz = 22", UP
+            )),
+            Transform(legenda, self.texto_na_borda(
+                f"FB(22) = {fator_balanceamento(22)}; "
+                f"FB(15) = {fator_balanceamento(15)}; "
+                f"FB(30) = {fator_balanceamento(30)}", DOWN
+            )),
+        )
+        self.wait(3)
